@@ -20,7 +20,11 @@ const DailyRoadmap = () => {
 
   const currentDayData = roadmap.find(day => day.day_number === currentDay);
   const currentProgress = userProgress.find(p => p.day_number === currentDay);
-  const completedTasks = currentProgress?.completed_tasks || [];
+  
+  // Properly type the completed tasks as an array of numbers
+  const completedTasks = Array.isArray(currentProgress?.completed_tasks) 
+    ? (currentProgress.completed_tasks as number[])
+    : [];
 
   const handleTaskToggle = async (taskIndex: number) => {
     if (!user || !currentDayData) {
@@ -32,7 +36,9 @@ const DailyRoadmap = () => {
       ? completedTasks.filter(t => t !== taskIndex)
       : [...completedTasks, taskIndex];
 
-    const totalTasks = currentDayData.tasks?.length || 0;
+    // Properly type the tasks array
+    const tasks = Array.isArray(currentDayData.tasks) ? currentDayData.tasks as string[] : [];
+    const totalTasks = tasks.length;
     const completionPercentage = totalTasks > 0 ? Math.round((newCompletedTasks.length / totalTasks) * 100) : 0;
 
     updateProgressMutation.mutate({
@@ -69,6 +75,9 @@ const DailyRoadmap = () => {
       </div>
     );
   }
+
+  // Properly type the tasks array
+  const tasks = Array.isArray(currentDayData.tasks) ? currentDayData.tasks as string[] : [];
 
   return (
     <div className="space-y-6">
@@ -183,11 +192,11 @@ const DailyRoadmap = () => {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-semibold">Progress</h4>
                     <span className="text-sm text-gray-600">
-                      {completedTasks.length} / {currentDayData.tasks?.length || 0} tasks
+                      {completedTasks.length} / {tasks.length} tasks
                     </span>
                   </div>
                   <Progress 
-                    value={(completedTasks.length / (currentDayData.tasks?.length || 1)) * 100} 
+                    value={(completedTasks.length / (tasks.length || 1)) * 100} 
                     className="h-2"
                   />
                 </div>
@@ -195,7 +204,7 @@ const DailyRoadmap = () => {
                 <div>
                   <h4 className="font-semibold mb-3">Tasks</h4>
                   <div className="space-y-2">
-                    {currentDayData.tasks?.map((task: string, index: number) => (
+                    {tasks.map((task: string, index: number) => (
                       <div key={index} className="flex items-start space-x-3">
                         <Button
                           variant="ghost"
