@@ -1,308 +1,345 @@
 
 import React, { useState, useEffect } from 'react';
-import { Timer, Play, Pause, RotateCcw, AlertCircle, Target, CheckCircle } from 'lucide-react';
+import { Timer, Play, Pause, RotateCcw, Target, Clock, Zap, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { useFocusTasks, useCreateFocusTask, useDeleteFocusTask } from '@/hooks/useAdminContent';
+import { useAuth } from '@/hooks/useAuth';
 
 const DistractionAvoidance = () => {
-  const [pomodoroTime, setPomodoroTime] = useState(25 * 60); // 25 minutes
+  const { isAdmin } = useAuth();
+  const { data: focusTasks = [] } = useFocusTasks();
+  const createTaskMutation = useCreateFocusTask();
+  const deleteTaskMutation = useDeleteFocusTask();
+
+  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
   const [isRunning, setIsRunning] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState('work'); // 'work', 'shortBreak', 'longBreak'
-  const [completedPomodoros, setCompletedPomodoros] = useState(0);
-  const [focusTasks, setFocusTasks] = useState([
-    { id: 1, text: 'Review Java fundamentals', completed: false, priority: 'high' },
-    { id: 2, text: 'Practice coding exercises', completed: false, priority: 'medium' },
-    { id: 3, text: 'Read documentation', completed: true, priority: 'low' },
-  ]);
-
-  const phases = {
-    work: { duration: 25 * 60, name: 'Focus Time', color: 'text-red-500' },
-    shortBreak: { duration: 5 * 60, name: 'Short Break', color: 'text-green-500' },
-    longBreak: { duration: 15 * 60, name: 'Long Break', color: 'text-blue-500' },
-  };
-
-  const focusTips = [
-    "Turn off notifications on your phone",
-    "Close unnecessary browser tabs",
-    "Use website blockers for social media",
-    "Keep a clean, organized workspace",
-    "Stay hydrated and take regular breaks",
-    "Practice the two-minute rule for quick tasks"
-  ];
-
-  const distractionBlockers = [
-    { name: "Social Media Block", description: "Block Facebook, Twitter, Instagram", active: false },
-    { name: "YouTube Block", description: "Block video streaming sites", active: true },
-    { name: "News Sites Block", description: "Block news and entertainment sites", active: false },
-    { name: "Gaming Sites Block", description: "Block online games and gaming platforms", active: false },
-  ];
-
-  const [blockers, setBlockers] = useState(distractionBlockers);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [showAddTask, setShowAddTask] = useState(false);
+  
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    duration_minutes: 25,
+    difficulty: 'Medium',
+    category: 'productivity',
+  });
 
   useEffect(() => {
-    let interval;
-    if (isRunning && pomodoroTime > 0) {
+    let interval: NodeJS.Timeout;
+
+    if (isRunning && timeLeft > 0) {
       interval = setInterval(() => {
-        setPomodoroTime((prev) => {
-          if (prev <= 1) {
-            handlePhaseComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+        setTimeLeft((prevTime) => prevTime - 1);
       }, 1000);
+    } else if (timeLeft === 0) {
+      setIsRunning(false);
+      // Could add notification here
     }
-    
+
     return () => clearInterval(interval);
-  }, [isRunning, pomodoroTime]);
+  }, [isRunning, timeLeft]);
 
-  const handlePhaseComplete = () => {
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleStart = () => setIsRunning(true);
+  const handlePause = () => setIsRunning(false);
+  const handleReset = () => {
     setIsRunning(false);
-    
-    if (currentPhase === 'work') {
-      setCompletedPomodoros(prev => prev + 1);
-      const nextPhase = (completedPomodoros + 1) % 4 === 0 ? 'longBreak' : 'shortBreak';
-      setCurrentPhase(nextPhase);
-      setPomodoroTime(phases[nextPhase].duration);
-    } else {
-      setCurrentPhase('work');
-      setPomodoroTime(phases.work.duration);
+    setTimeLeft(selectedTask ? selectedTask.duration_minutes * 60 : 25 * 60);
+  };
+
+  const selectTask = (task: any) => {
+    setSelectedTask(task);
+    setTimeLeft(task.duration_minutes * 60);
+    setIsRunning(false);
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'Easy': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Hard': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const startTimer = () => {
-    setIsRunning(true);
+  const progress = selectedTask 
+    ? ((selectedTask.duration_minutes * 60 - timeLeft) / (selectedTask.duration_minutes * 60)) * 100
+    : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+
+  const handleCreateTask = async () => {
+    if (!taskForm.title.trim()) return;
+    
+    try {
+      await createTaskMutation.mutateAsync(taskForm);
+      setTaskForm({
+        title: '',
+        description: '',
+        duration_minutes: 25,
+        difficulty: 'Medium',
+        category: 'productivity',
+      });
+      setShowAddTask(false);
+    } catch (error) {
+      console.error('Error creating task:', error);
+    }
   };
 
-  const pauseTimer = () => {
-    setIsRunning(false);
-  };
-
-  const resetTimer = () => {
-    setIsRunning(false);
-    setPomodoroTime(phases[currentPhase].duration);
-  };
-
-  const toggleTask = (taskId) => {
-    setFocusTasks(prev => prev.map(task => 
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    ));
-  };
-
-  const addTask = () => {
-    const newTask = {
-      id: Date.now(),
-      text: 'New task',
-      completed: false,
-      priority: 'medium'
-    };
-    setFocusTasks(prev => [...prev, newTask]);
-  };
-
-  const toggleBlocker = (index) => {
-    setBlockers(prev => prev.map((blocker, i) => 
-      i === index ? { ...blocker, active: !blocker.active } : blocker
-    ));
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getProgress = () => {
-    const total = phases[currentPhase].duration;
-    const remaining = pomodoroTime;
-    return ((total - remaining) / total) * 100;
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'high': return 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20';
-      case 'medium': return 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20';
-      case 'low': return 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20';
-      default: return 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800';
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTaskMutation.mutateAsync(taskId);
+      if (selectedTask?.id === taskId) {
+        setSelectedTask(null);
+        setTimeLeft(25 * 60);
+        setIsRunning(false);
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Pomodoro Timer */}
-      <Card className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Timer className="h-5 w-5 text-red-500" />
-              <span>Pomodoro Timer</span>
-            </div>
-            <div className={`text-sm font-medium ${phases[currentPhase].color}`}>
-              {phases[currentPhase].name}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center space-y-6">
-            <div className="space-y-4">
-              <div className="text-6xl font-bold text-gray-900 dark:text-white">
-                {formatTime(pomodoroTime)}
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Focus Tools</h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          Stay focused and productive with our distraction-free timer
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Timer Section */}
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center space-x-2">
+              <Timer className="h-6 w-6" />
+              <span>Focus Timer</span>
+            </CardTitle>
+            {selectedTask && (
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">{selectedTask.title}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{selectedTask.description}</p>
+                <div className="flex justify-center space-x-2">
+                  <Badge className={getDifficultyColor(selectedTask.difficulty)}>
+                    {selectedTask.difficulty}
+                  </Badge>
+                  <Badge variant="outline">
+                    {selectedTask.category}
+                  </Badge>
+                </div>
               </div>
-              <Progress value={getProgress()} className="h-3" />
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="text-center">
+              <div className="text-6xl font-mono font-bold text-blue-600 dark:text-blue-400 mb-4">
+                {formatTime(timeLeft)}
+              </div>
+              <Progress value={progress} className="w-full h-3" />
             </div>
-            
+
             <div className="flex justify-center space-x-4">
-              <Button
-                onClick={isRunning ? pauseTimer : startTimer}
-                size="lg"
-                className="bg-red-500 hover:bg-red-600 text-white"
-              >
-                {isRunning ? (
-                  <>
-                    <Pause className="h-5 w-5 mr-2" />
-                    Pause
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-5 w-5 mr-2" />
-                    Start
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" onClick={resetTimer} size="lg">
+              {!isRunning ? (
+                <Button onClick={handleStart} size="lg" className="bg-green-500 hover:bg-green-600">
+                  <Play className="h-5 w-5 mr-2" />
+                  Start
+                </Button>
+              ) : (
+                <Button onClick={handlePause} size="lg" variant="outline">
+                  <Pause className="h-5 w-5 mr-2" />
+                  Pause
+                </Button>
+              )}
+              <Button onClick={handleReset} size="lg" variant="outline">
                 <RotateCcw className="h-5 w-5 mr-2" />
                 Reset
               </Button>
             </div>
-            
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                <div className="text-2xl font-bold text-red-500">{completedPomodoros}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                <div className="text-2xl font-bold text-green-500">
-                  {focusTasks.filter(task => task.completed).length}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Tasks Done</div>
-              </div>
-              <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                <div className="text-2xl font-bold text-blue-500">
-                  {Math.floor((completedPomodoros * 25) / 60)}h {(completedPomodoros * 25) % 60}m
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Study Time</div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Focus Tasks */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Target className="h-5 w-5 text-blue-500" />
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center space-x-2">
+                <Target className="h-5 w-5" />
                 <span>Focus Tasks</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={addTask}>
-                Add Task
-              </Button>
-            </CardTitle>
+              </CardTitle>
+              {isAdmin && (
+                <Dialog open={showAddTask} onOpenChange={setShowAddTask}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Task
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Focus Task</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="title">Task Title</Label>
+                        <Input
+                          id="title"
+                          value={taskForm.title}
+                          onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                          placeholder="e.g., Deep Learning Session"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea
+                          id="description"
+                          value={taskForm.description}
+                          onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                          placeholder="Describe the focus task..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="duration">Duration (minutes)</Label>
+                          <Input
+                            id="duration"
+                            type="number"
+                            value={taskForm.duration_minutes}
+                            onChange={(e) => setTaskForm({ ...taskForm, duration_minutes: parseInt(e.target.value) })}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="difficulty">Difficulty</Label>
+                          <Select value={taskForm.difficulty} onValueChange={(value) => setTaskForm({ ...taskForm, difficulty: value })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Easy">Easy</SelectItem>
+                              <SelectItem value="Medium">Medium</SelectItem>
+                              <SelectItem value="Hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="category">Category</Label>
+                        <Select value={taskForm.category} onValueChange={(value) => setTaskForm({ ...taskForm, category: value })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="productivity">Productivity</SelectItem>
+                            <SelectItem value="learning">Learning</SelectItem>
+                            <SelectItem value="technical">Technical</SelectItem>
+                            <SelectItem value="analytical">Analytical</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleCreateTask} disabled={!taskForm.title.trim()}>
+                        Add Task
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {focusTasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer ${getPriorityColor(task.priority)}`}
-                  onClick={() => toggleTask(task.id)}
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    selectedTask?.id === task.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                  onClick={() => selectTask(task)}
                 >
-                  {task.completed ? (
-                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <div className="h-5 w-5 border-2 border-gray-300 rounded-full flex-shrink-0" />
-                  )}
-                  <span
-                    className={`flex-1 ${
-                      task.completed
-                        ? 'text-gray-500 line-through'
-                        : 'text-gray-900 dark:text-white'
-                    }`}
-                  >
-                    {task.text}
-                  </span>
-                  <span className={`text-xs px-2 py-1 rounded capitalize ${
-                    task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                    task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  }`}>
-                    {task.priority}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Distraction Blockers */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              <span>Distraction Blockers</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {blockers.map((blocker, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
-                >
-                  <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white">
-                      {blocker.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {blocker.description}
-                    </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{task.description}</p>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Badge className={getDifficultyColor(task.difficulty)}>
+                          {task.difficulty}
+                        </Badge>
+                        <Badge variant="outline" className="flex items-center space-x-1">
+                          <Clock className="h-3 w-3" />
+                          <span>{task.duration_minutes}min</span>
+                        </Badge>
+                        <Badge variant="outline">{task.category}</Badge>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(task.id);
+                        }}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  <Button
-                    variant={blocker.active ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleBlocker(index)}
-                  >
-                    {blocker.active ? 'Active' : 'Inactive'}
-                  </Button>
                 </div>
               ))}
-              
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  These are mock blockers. For real website blocking, consider browser extensions like StayFocusd or Cold Turkey.
-                </AlertDescription>
-              </Alert>
+
+              {focusTasks.length === 0 && (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No focus tasks available. {isAdmin && 'Add some tasks to get started!'}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Focus Tips */}
+      {/* Tips Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Focus Enhancement Tips</CardTitle>
+          <CardTitle className="flex items-center space-x-2">
+            <Zap className="h-5 w-5" />
+            <span>Focus Tips</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {focusTips.map((tip, index) => (
-              <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg">
-                <p className="text-sm text-blue-800 dark:text-blue-200">{tip}</p>
-              </div>
-            ))}
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Remove Distractions</h4>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Close unnecessary tabs, put your phone away, and create a clean workspace.
+              </p>
+            </div>
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <h4 className="font-semibold text-green-800 dark:text-green-200 mb-2">Take Breaks</h4>
+              <p className="text-sm text-green-700 dark:text-green-300">
+                Use the Pomodoro Technique: 25 minutes of focused work followed by a 5-minute break.
+              </p>
+            </div>
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <h4 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">Stay Hydrated</h4>
+              <p className="text-sm text-purple-700 dark:text-purple-300">
+                Keep water nearby and maintain good posture to stay alert and focused.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

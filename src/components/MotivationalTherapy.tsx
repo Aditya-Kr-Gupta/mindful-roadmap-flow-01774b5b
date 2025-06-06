@@ -1,69 +1,112 @@
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Target, Zap, Star, Award, Heart } from 'lucide-react';
+import { Trophy, Target, Zap, Star, Award, Heart, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserProgress, useUserStreak } from '@/hooks/useRoadmap';
+import { useMotivationalTips, useCreateTip, useDeleteTip, useUserAchievements, useCreateAchievement } from '@/hooks/useAdminContent';
 
 const MotivationalTherapy = () => {
+  const { user, isAdmin } = useAuth();
+  const { data: userProgress = [] } = useUserProgress(user?.id);
+  const { data: userStreak } = useUserStreak(user?.id);
+  const { data: tips = [] } = useMotivationalTips();
+  const { data: userAchievements = [] } = useUserAchievements(user?.id);
+  const createTipMutation = useCreateTip();
+  const deleteTipMutation = useDeleteTip();
+  const createAchievementMutation = useCreateAchievement();
+
   const [currentQuote, setCurrentQuote] = useState(0);
-  const [achievements, setAchievements] = useState([
-    { id: 1, name: 'First Steps', description: 'Started your learning journey', unlocked: true, icon: Star },
-    { id: 2, name: 'Week Warrior', description: 'Completed 7 consecutive days', unlocked: true, icon: Trophy },
-    { id: 3, name: 'Code Master', description: 'Finished 50 coding exercises', unlocked: false, icon: Target },
-    { id: 4, name: 'Project Pioneer', description: 'Completed first major project', unlocked: false, icon: Award },
-  ]);
+  const [newTip, setNewTip] = useState('');
+  const [newTipCategory, setNewTipCategory] = useState('motivation');
+  const [showAddTip, setShowAddTip] = useState(false);
 
-  const quotes = [
-    {
-      text: "The expert in anything was once a beginner.",
-      author: "Helen Hayes",
-      category: "Growth"
+  // Calculate real achievements based on user progress
+  const completedDays = userProgress.filter(p => p.completion_percentage === 100).length;
+  const totalStudyHours = Math.round(completedDays * 1.5); // Estimate 1.5 hours per day
+  const currentStreakDays = userStreak?.current_streak || 0;
+
+  const staticAchievements = [
+    { 
+      id: 'first_steps', 
+      name: 'First Steps', 
+      description: 'Started your learning journey', 
+      unlocked: userProgress.length > 0, 
+      icon: Star 
     },
-    {
-      text: "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-      author: "Winston Churchill",
-      category: "Persistence"
+    { 
+      id: 'week_warrior', 
+      name: 'Week Warrior', 
+      description: 'Completed 7 consecutive days', 
+      unlocked: currentStreakDays >= 7, 
+      icon: Trophy 
     },
-    {
-      text: "The only way to do great work is to love what you do.",
-      author: "Steve Jobs",
-      category: "Passion"
+    { 
+      id: 'consistency_master', 
+      name: 'Consistency Master', 
+      description: 'Completed 30 days total', 
+      unlocked: completedDays >= 30, 
+      icon: Target 
     },
-    {
-      text: "Code is like humor. When you have to explain it, it's bad.",
-      author: "Cory House",
-      category: "Technical"
+    { 
+      id: 'dedication_champion', 
+      name: 'Dedication Champion', 
+      description: 'Completed 50 days total', 
+      unlocked: completedDays >= 50, 
+      icon: Award 
     },
-    {
-      text: "Learning never exhausts the mind.",
-      author: "Leonardo da Vinci",
-      category: "Learning"
-    }
   ];
 
-  const motivationalTips = [
-    "Remember why you started this journey",
-    "Small progress is still progress",
-    "Every expert was once a beginner",
-    "Consistency beats perfection",
-    "Celebrate your small wins",
-    "Focus on growth, not perfection"
-  ];
+  const allAchievements = [...staticAchievements, ...userAchievements.map(ua => ({
+    id: ua.id,
+    name: ua.achievement_name,
+    description: ua.achievement_description,
+    unlocked: true,
+    icon: Trophy
+  }))];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentQuote((prev) => (prev + 1) % quotes.length);
-    }, 10000);
+    if (tips.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentQuote((prev) => (prev + 1) % tips.length);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [tips.length]);
 
-    return () => clearInterval(interval);
-  }, []);
-
-  const getRandomTip = () => {
-    return motivationalTips[Math.floor(Math.random() * motivationalTips.length)];
+  const handleAddTip = async () => {
+    if (!newTip.trim()) return;
+    
+    try {
+      await createTipMutation.mutateAsync({
+        tip: newTip,
+        category: newTipCategory,
+      });
+      setNewTip('');
+      setShowAddTip(false);
+    } catch (error) {
+      console.error('Error adding tip:', error);
+    }
   };
 
-  const currentQuoteData = quotes[currentQuote];
+  const handleDeleteTip = async (tipId: string) => {
+    try {
+      await deleteTipMutation.mutateAsync(tipId);
+    } catch (error) {
+      console.error('Error deleting tip:', error);
+    }
+  };
+
+  const getRandomTip = () => {
+    if (tips.length === 0) return "Keep pushing forward!";
+    return tips[Math.floor(Math.random() * tips.length)].tip;
+  };
+
+  const currentQuoteData = tips[currentQuote] || { tip: "Keep learning and growing!", category: "motivation" };
 
   return (
     <div className="space-y-6">
@@ -75,28 +118,81 @@ const MotivationalTherapy = () => {
               <Heart className="h-12 w-12 mx-auto text-pink-200" />
             </div>
             <blockquote className="text-2xl md:text-3xl font-bold mb-4 leading-relaxed">
-              "{currentQuoteData.text}"
+              "{currentQuoteData.tip}"
             </blockquote>
             <div className="flex items-center justify-center space-x-4">
-              <cite className="text-pink-200">— {currentQuoteData.author}</cite>
               <Badge variant="secondary" className="bg-white/20 text-white">
                 {currentQuoteData.category}
               </Badge>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteTip(currentQuoteData.id)}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="flex justify-center space-x-2 mt-6">
-              {quotes.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentQuote(index)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    index === currentQuote ? 'bg-white' : 'bg-white/50'
-                  }`}
-                />
-              ))}
-            </div>
+            {tips.length > 1 && (
+              <div className="flex justify-center space-x-2 mt-6">
+                {tips.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentQuote(index)}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      index === currentQuote ? 'bg-white' : 'bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Admin Add Tip Section */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Manage Tips</span>
+              <Button onClick={() => setShowAddTip(!showAddTip)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tip
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          {showAddTip && (
+            <CardContent>
+              <div className="space-y-4">
+                <Input
+                  placeholder="Enter motivational tip..."
+                  value={newTip}
+                  onChange={(e) => setNewTip(e.target.value)}
+                />
+                <Select value={newTipCategory} onValueChange={setNewTipCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="motivation">Motivation</SelectItem>
+                    <SelectItem value="learning">Learning</SelectItem>
+                    <SelectItem value="progress">Progress</SelectItem>
+                    <SelectItem value="habits">Habits</SelectItem>
+                    <SelectItem value="achievement">Achievement</SelectItem>
+                    <SelectItem value="mindset">Mindset</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddTip} disabled={!newTip.trim()}>
+                  Add Tip
+                </Button>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Achievements */}
@@ -109,7 +205,7 @@ const MotivationalTherapy = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {achievements.map((achievement) => {
+              {allAchievements.map((achievement) => {
                 const Icon = achievement.icon;
                 return (
                   <div
@@ -149,7 +245,7 @@ const MotivationalTherapy = () => {
           </CardContent>
         </Card>
 
-        {/* Daily Motivation */}
+        {/* Real Progress Data */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -184,16 +280,16 @@ const MotivationalTherapy = () => {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <span className="text-green-800 dark:text-green-200">Tasks Completed Today</span>
-                  <Badge className="bg-green-500 text-white">3/5</Badge>
+                  <span className="text-green-800 dark:text-green-200">Days Completed</span>
+                  <Badge className="bg-green-500 text-white">{completedDays}</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <span className="text-blue-800 dark:text-blue-200">Learning Streak</span>
-                  <Badge className="bg-blue-500 text-white">7 days</Badge>
+                  <Badge className="bg-blue-500 text-white">{currentStreakDays} days</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                   <span className="text-purple-800 dark:text-purple-200">Total Study Hours</span>
-                  <Badge className="bg-purple-500 text-white">42h</Badge>
+                  <Badge className="bg-purple-500 text-white">{totalStudyHours}h</Badge>
                 </div>
               </div>
             </CardContent>
@@ -208,7 +304,7 @@ const MotivationalTherapy = () => {
             <h3 className="text-xl font-bold mb-2">You're Doing Great!</h3>
             <p className="text-green-100">
               Every line of code you write, every concept you grasp, and every challenge you overcome
-              brings you closer to your goals. Keep pushing forward!
+              brings you closer to your goals. Keep pushing forward with ManasMitra!
             </p>
           </div>
         </CardContent>
