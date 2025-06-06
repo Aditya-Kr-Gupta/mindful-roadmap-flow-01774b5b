@@ -3,11 +3,54 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Type definitions for our data
+interface MotivationalTip {
+  id: string;
+  tip: string;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AmbientSound {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  audio_url?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FocusTask {
+  id: string;
+  title: string;
+  description?: string;
+  duration_minutes: number;
+  difficulty: string;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_name: string;
+  achievement_description?: string;
+  unlocked_at?: string;
+  achievement_type: string;
+  created_at: string;
+}
+
 // Motivational Tips hooks
 export const useMotivationalTips = () => {
   return useQuery({
     queryKey: ['motivational-tips'],
-    queryFn: async () => {
+    queryFn: async (): Promise<MotivationalTip[]> => {
       const { data, error } = await supabase
         .from('motivational_tips')
         .select('*')
@@ -15,7 +58,7 @@ export const useMotivationalTips = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 };
@@ -72,7 +115,7 @@ export const useDeleteTip = () => {
 export const useAmbientSounds = () => {
   return useQuery({
     queryKey: ['ambient-sounds'],
-    queryFn: async () => {
+    queryFn: async (): Promise<AmbientSound[]> => {
       const { data, error } = await supabase
         .from('ambient_sounds')
         .select('*')
@@ -80,7 +123,7 @@ export const useAmbientSounds = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 };
@@ -114,7 +157,7 @@ export const useCreateAmbientSound = () => {
 export const useFocusTasks = () => {
   return useQuery({
     queryKey: ['focus-tasks'],
-    queryFn: async () => {
+    queryFn: async (): Promise<FocusTask[]> => {
       const { data, error } = await supabase
         .from('focus_tasks')
         .select('*')
@@ -122,7 +165,7 @@ export const useFocusTasks = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 };
@@ -185,7 +228,7 @@ export const useDeleteFocusTask = () => {
 export const useUserAchievements = (userId?: string) => {
   return useQuery({
     queryKey: ['user-achievements', userId],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserAchievement[]> => {
       if (!userId) return [];
       
       const { data, error } = await supabase
@@ -195,7 +238,7 @@ export const useUserAchievements = (userId?: string) => {
         .order('unlocked_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: !!userId,
   });

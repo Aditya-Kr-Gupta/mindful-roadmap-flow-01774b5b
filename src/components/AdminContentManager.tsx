@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Plus, Edit, Trash, Music, Target, Heart } from 'lucide-react';
 import { useMotivationalTips, useCreateTip, useDeleteTip, useAmbientSounds, useCreateAmbientSound, useFocusTasks, useCreateFocusTask, useDeleteFocusTask } from '@/hooks/useAdminContent';
-import { toast } from 'sonner';
 
 export const AdminContentManager = () => {
   const { data: tips = [] } = useMotivationalTips();

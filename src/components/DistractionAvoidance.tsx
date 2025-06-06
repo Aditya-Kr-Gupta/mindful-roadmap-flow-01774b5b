@@ -13,6 +13,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useFocusTasks, useCreateFocusTask, useDeleteFocusTask } from '@/hooks/useAdminContent';
 import { useAuth } from '@/hooks/useAuth';
 
+interface FocusTask {
+  id: string;
+  title: string;
+  description?: string;
+  duration_minutes: number;
+  difficulty: string;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 const DistractionAvoidance = () => {
   const { isAdmin } = useAuth();
   const { data: focusTasks = [] } = useFocusTasks();
@@ -21,7 +33,7 @@ const DistractionAvoidance = () => {
 
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
   const [isRunning, setIsRunning] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [selectedTask, setSelectedTask] = useState<FocusTask | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   
   const [taskForm, setTaskForm] = useState({
@@ -60,7 +72,7 @@ const DistractionAvoidance = () => {
     setTimeLeft(selectedTask ? selectedTask.duration_minutes * 60 : 25 * 60);
   };
 
-  const selectTask = (task: any) => {
+  const selectTask = (task: FocusTask) => {
     setSelectedTask(task);
     setTimeLeft(task.duration_minutes * 60);
     setIsRunning(false);
