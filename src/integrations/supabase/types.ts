@@ -9,7 +9,157 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      learning_roadmap: {
+        Row: {
+          category: string
+          created_at: string | null
+          day_number: number
+          description: string
+          difficulty: string
+          estimated_time: string
+          id: string
+          tasks: Json
+          title: string
+          updated_at: string | null
+          week_info: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          day_number: number
+          description: string
+          difficulty: string
+          estimated_time: string
+          id?: string
+          tasks?: Json
+          title: string
+          updated_at?: string | null
+          week_info: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          day_number?: number
+          description?: string
+          difficulty?: string
+          estimated_time?: string
+          id?: string
+          tasks?: Json
+          title?: string
+          updated_at?: string | null
+          week_info?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          completed_at: string | null
+          completed_tasks: Json | null
+          completion_percentage: number | null
+          created_at: string | null
+          day_number: number
+          id: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_tasks?: Json | null
+          completion_percentage?: number | null
+          created_at?: string | null
+          day_number: number
+          id?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_tasks?: Json | null
+          completion_percentage?: number | null
+          created_at?: string | null
+          day_number?: number
+          id?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_streaks: {
+        Row: {
+          created_at: string | null
+          current_streak: number | null
+          id: string
+          last_activity_date: string | null
+          longest_streak: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_activity_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_streaks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,17 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { Clock, BookOpen, Heart, Zap, Settings, Moon, Sun } from 'lucide-react';
+import { Clock, BookOpen, Heart, Zap, Settings, Moon, Sun, User, Shield } from 'lucide-react';
 import DailyRoadmap from '../components/DailyRoadmap';
 import MotivationalTherapy from '../components/MotivationalTherapy';
 import RelaxationTherapy from '../components/RelaxationTherapy';
 import DistractionAvoidance from '../components/DistractionAvoidance';
 import FlipClock from '../components/FlipClock';
+import { AdminPanel } from '../components/AdminPanel';
+import { AuthModal } from '../components/AuthModal';
 import { Button } from '../components/ui/button';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
 
-const Index = () => {
+const AppContent = () => {
   const [activeMode, setActiveMode] = useState('roadmap');
   const [darkMode, setDarkMode] = useState(false);
   const [showFlipClock, setShowFlipClock] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { user, signOut, loading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (darkMode) {
@@ -32,6 +37,10 @@ const Index = () => {
     { id: 'focus', name: 'Focus Tools', icon: Settings, color: 'bg-purple-500' },
   ];
 
+  if (isAdmin) {
+    modes.push({ id: 'admin', name: 'Admin Panel', icon: Shield, color: 'bg-red-500' });
+  }
+
   const renderActiveMode = () => {
     switch (activeMode) {
       case 'roadmap':
@@ -42,6 +51,8 @@ const Index = () => {
         return <RelaxationTherapy />;
       case 'focus':
         return <DistractionAvoidance />;
+      case 'admin':
+        return isAdmin ? <AdminPanel /> : <DailyRoadmap />;
       default:
         return <DailyRoadmap />;
     }
@@ -89,6 +100,34 @@ const Index = () => {
                   <Moon className="h-5 w-5 text-gray-600" />
                 )}
               </Button>
+
+              {loading ? (
+                <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+              ) : user ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">
+                    Welcome, {user.email}
+                  </span>
+                  {isAdmin && (
+                    <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                      Admin
+                    </span>
+                  )}
+                  <Button variant="outline" size="sm" onClick={signOut}>
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <User className="h-4 w-4" />
+                  <span>Sign In</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -125,7 +164,17 @@ const Index = () => {
           {renderActiveMode()}
         </div>
       </main>
+
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
+  );
+};
+
+const Index = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

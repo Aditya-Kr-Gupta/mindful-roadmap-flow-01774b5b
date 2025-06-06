@@ -1,138 +1,123 @@
 
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Calendar, TrendingUp, Target, Star } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
+import React, { useState } from 'react';
+import { Calendar, CheckCircle2, Clock, Target, Trophy, Flame, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useRoadmap, useUserProgress, useUserStreak, useUpdateProgress } from '@/hooks/useRoadmap';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const DailyRoadmap = () => {
+  const { user } = useAuth();
+  const { data: roadmap = [] } = useRoadmap();
+  const { data: userProgress = [] } = useUserProgress(user?.id);
+  const { data: userStreak } = useUserStreak(user?.id);
+  const updateProgressMutation = useUpdateProgress();
+
   const [currentDay, setCurrentDay] = useState(1);
-  const [completedTasks, setCompletedTasks] = useState(new Set());
-  const [streak, setStreak] = useState(7);
 
-  const roadmapData = {
-    1: {
-      title: "Java Fundamentals Review",
-      description: "Review Java fundamentals (loops, conditions, OOP basics)",
-      week: "Week 1-4: Foundations and Core Development",
-      category: "Java Basics to Advanced",
-      tasks: [
-        "Review variable types and operators",
-        "Practice loop constructs (for, while, do-while)",
-        "Implement basic conditional statements",
-        "Create simple classes and objects",
-        "Understand method overloading and overriding"
-      ],
-      estimatedTime: "4-6 hours",
-      difficulty: "Beginner"
-    },
-    2: {
-      title: "Java Fundamentals Deep Dive",
-      description: "Continue with Java fundamentals and OOP concepts",
-      week: "Week 1-4: Foundations and Core Development",
-      category: "Java Basics to Advanced",
-      tasks: [
-        "Master inheritance and polymorphism",
-        "Practice encapsulation and abstraction",
-        "Work with interfaces and abstract classes",
-        "Understand static keywords and final modifiers",
-        "Build a simple calculator application"
-      ],
-      estimatedTime: "4-6 hours",
-      difficulty: "Beginner"
-    },
-    3: {
-      title: "Collections Framework - Lists",
-      description: "Learn collections framework focusing on Lists",
-      week: "Week 1-4: Foundations and Core Development",
-      category: "Java Basics to Advanced",
-      tasks: [
-        "Understand ArrayList vs LinkedList",
-        "Practice List operations (add, remove, search)",
-        "Implement custom sorting with Comparator",
-        "Work with iterators and enhanced for loops",
-        "Build a task management system using Lists"
-      ],
-      estimatedTime: "5-7 hours",
-      difficulty: "Intermediate"
+  const currentDayData = roadmap.find(day => day.day_number === currentDay);
+  const currentProgress = userProgress.find(p => p.day_number === currentDay);
+  const completedTasks = currentProgress?.completed_tasks || [];
+
+  const handleTaskToggle = async (taskIndex: number) => {
+    if (!user || !currentDayData) {
+      toast.error('Please sign in to track progress');
+      return;
     }
+
+    const newCompletedTasks = completedTasks.includes(taskIndex)
+      ? completedTasks.filter(t => t !== taskIndex)
+      : [...completedTasks, taskIndex];
+
+    const totalTasks = currentDayData.tasks?.length || 0;
+    const completionPercentage = totalTasks > 0 ? Math.round((newCompletedTasks.length / totalTasks) * 100) : 0;
+
+    updateProgressMutation.mutate({
+      userId: user.id,
+      dayNumber: currentDay,
+      completedTasks: newCompletedTasks,
+      completionPercentage,
+    });
   };
 
-  const getCurrentDayData = () => {
-    return roadmapData[currentDay] || roadmapData[1];
-  };
-
-  const toggleTask = (taskIndex) => {
-    const taskKey = `${currentDay}-${taskIndex}`;
-    const newCompleted = new Set(completedTasks);
-    
-    if (newCompleted.has(taskKey)) {
-      newCompleted.delete(taskKey);
-    } else {
-      newCompleted.add(taskKey);
-    }
-    
-    setCompletedTasks(newCompleted);
-  };
-
-  const getProgressPercentage = () => {
-    const dayData = getCurrentDayData();
-    const dayTasks = dayData.tasks.length;
-    const completedDayTasks = dayData.tasks.filter((_, index) => 
-      completedTasks.has(`${currentDay}-${index}`)
-    ).length;
-    
-    return Math.round((completedDayTasks / dayTasks) * 100);
-  };
-
-  const getDifficultyColor = (difficulty) => {
+  const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Beginner': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'Intermediate': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'Advanced': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+      case 'Beginner': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Intermediate': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Advanced': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const dayData = getCurrentDayData();
-  const progress = getProgressPercentage();
+  const getCompletedDaysCount = () => {
+    return userProgress.filter(p => p.completion_percentage === 100).length;
+  };
+
+  const getOverallProgress = () => {
+    if (userProgress.length === 0) return 0;
+    const totalProgress = userProgress.reduce((sum, p) => sum + p.completion_percentage, 0);
+    return Math.round(totalProgress / userProgress.length);
+  };
+
+  if (!currentDayData) {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Loading Roadmap...</h2>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Progress Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Header Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100">Current Day</p>
-                <p className="text-3xl font-bold">{currentDay}</p>
+                <p className="text-2xl font-bold">{currentDay}</p>
               </div>
-              <Calendar className="h-12 w-12 text-blue-200" />
+              <Calendar className="h-8 w-8 text-blue-200" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100">Daily Progress</p>
-                <p className="text-3xl font-bold">{progress}%</p>
+                <p className="text-green-100">Completed Days</p>
+                <p className="text-2xl font-bold">{getCompletedDaysCount()}</p>
               </div>
-              <TrendingUp className="h-12 w-12 text-green-200" />
+              <CheckCircle2 className="h-8 w-8 text-green-200" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100">Streak</p>
-                <p className="text-3xl font-bold">{streak} days</p>
+                <p className="text-purple-100">Overall Progress</p>
+                <p className="text-2xl font-bold">{getOverallProgress()}%</p>
               </div>
-              <Star className="h-12 w-12 text-purple-200" />
+              <Target className="h-8 w-8 text-purple-200" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100">Current Streak</p>
+                <p className="text-2xl font-bold">{userStreak?.current_streak || 0}</p>
+              </div>
+              <Flame className="h-8 w-8 text-orange-200" />
             </div>
           </CardContent>
         </Card>
@@ -140,129 +125,163 @@ const DailyRoadmap = () => {
 
       {/* Day Navigation */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <button
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
               onClick={() => setCurrentDay(Math.max(1, currentDay - 1))}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               disabled={currentDay === 1}
             >
+              <ArrowLeft className="h-4 w-4 mr-2" />
               Previous Day
-            </button>
+            </Button>
+            
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Day {currentDay}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{dayData.week}</p>
+              <CardTitle className="text-xl">Day {currentDay}: {currentDayData.title}</CardTitle>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{currentDayData.week_info}</p>
             </div>
-            <button
+
+            <Button
+              variant="outline"
               onClick={() => setCurrentDay(Math.min(90, currentDay + 1))}
-              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               disabled={currentDay === 90}
             >
               Next Day
-            </button>
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
           </div>
-        </CardContent>
+        </CardHeader>
       </Card>
 
-      {/* Main Content */}
+      {/* Current Day Details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Task List */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
-                  {dayData.title}
-                </CardTitle>
-                <Badge className={getDifficultyColor(dayData.difficulty)}>
-                  {dayData.difficulty}
-                </Badge>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-xl mb-2">{currentDayData.title}</CardTitle>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">{currentDayData.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className={getDifficultyColor(currentDayData.difficulty)}>
+                      {currentDayData.difficulty}
+                    </Badge>
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {currentDayData.estimated_time}
+                    </Badge>
+                    <Badge variant="outline">
+                      {currentDayData.category}
+                    </Badge>
+                  </div>
+                </div>
               </div>
-              <p className="text-gray-600 dark:text-gray-400">{dayData.description}</p>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Progress</span>
-                  <span className="font-medium">{progress}% Complete</span>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold">Progress</h4>
+                    <span className="text-sm text-gray-600">
+                      {completedTasks.length} / {currentDayData.tasks?.length || 0} tasks
+                    </span>
+                  </div>
+                  <Progress 
+                    value={(completedTasks.length / (currentDayData.tasks?.length || 1)) * 100} 
+                    className="h-2"
+                  />
                 </div>
-                <Progress value={progress} className="h-2" />
-                
-                <div className="space-y-3 mt-6">
-                  {dayData.tasks.map((task, index) => {
-                    const isCompleted = completedTasks.has(`${currentDay}-${index}`);
-                    return (
-                      <div
-                        key={index}
-                        className={`flex items-center space-x-3 p-3 rounded-lg border transition-all duration-200 cursor-pointer hover:shadow-md ${
-                          isCompleted
-                            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                        onClick={() => toggleTask(index)}
-                      >
-                        {isCompleted ? (
-                          <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <Circle className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                        )}
+
+                <div>
+                  <h4 className="font-semibold mb-3">Tasks</h4>
+                  <div className="space-y-2">
+                    {currentDayData.tasks?.map((task: string, index: number) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`p-1 h-auto ${
+                            completedTasks.includes(index)
+                              ? 'text-green-600'
+                              : 'text-gray-400'
+                          }`}
+                          onClick={() => handleTaskToggle(index)}
+                        >
+                          <CheckCircle2 className="h-5 w-5" />
+                        </Button>
                         <span
                           className={`flex-1 ${
-                            isCompleted
-                              ? 'text-green-700 dark:text-green-300 line-through'
-                              : 'text-gray-900 dark:text-white'
+                            completedTasks.includes(index)
+                              ? 'line-through text-gray-500'
+                              : 'text-gray-900 dark:text-gray-100'
                           }`}
                         >
                           {task}
                         </span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Sidebar Info */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Target className="h-5 w-5" />
-                <span>Today's Focus</span>
+          {/* Streak Card */}
+          <Card className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-orange-800 dark:text-orange-200">
+                <Flame className="h-5 w-5" />
+                <span>Learning Streak</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">Category</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{dayData.category}</p>
+              <div className="space-y-3">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
+                    {userStreak?.current_streak || 0}
+                  </div>
+                  <div className="text-sm text-orange-700 dark:text-orange-300">
+                    {userStreak?.current_streak === 1 ? 'day' : 'days'} in a row
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">Estimated Time</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{dayData.estimatedTime}</p>
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">Difficulty</h4>
-                  <Badge className={getDifficultyColor(dayData.difficulty)}>
-                    {dayData.difficulty}
-                  </Badge>
+                
+                <div className="text-center border-t pt-3">
+                  <div className="flex items-center justify-center space-x-2">
+                    <Trophy className="h-4 w-4 text-yellow-500" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Best: {userStreak?.longest_streak || 0} days
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Quick Stats */}
           <Card>
             <CardHeader>
-              <CardTitle>Quick Tips</CardTitle>
+              <CardTitle className="text-lg">Quick Stats</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <p>• Take breaks every 25 minutes</p>
-                <p>• Practice coding along with reading</p>
-                <p>• Don't hesitate to ask for help</p>
-                <p>• Review previous concepts regularly</p>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Total Days</span>
+                <span className="font-semibold">90</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Completed</span>
+                <span className="font-semibold text-green-600">{getCompletedDaysCount()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Remaining</span>
+                <span className="font-semibold text-orange-600">{90 - getCompletedDaysCount()}</span>
+              </div>
+              <div className="border-t pt-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Overall Progress</span>
+                  <span className="font-semibold text-blue-600">{getOverallProgress()}%</span>
+                </div>
               </div>
             </CardContent>
           </Card>
